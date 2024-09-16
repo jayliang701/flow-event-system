@@ -1,26 +1,26 @@
-import * as React from "react";
-import { withLoginFlowEvent, useLoginFlowEvent } from "./flow-tracking";
-import OtpVerification from "../otp/OtpVerification";
+import * as React from 'react';
+import { withLoginFlowEvent, useLoginFlowEvent } from './flow-tracking';
+import OtpVerification from '../otp/OtpVerification';
 
-const Test = ({ show }) => {
-  React.useEffect(() => {
-    let toastTimeout: ReturnType<typeof setTimeout>;
-    if (show) {
-      toastTimeout = setTimeout(() => {
-        console.log("dismiss");
-      }, 2000);
-      console.log("create timeout ---> ", toastTimeout);
-    }
+// const Test = ({ show }) => {
+//   React.useEffect(() => {
+//     let toastTimeout: ReturnType<typeof setTimeout>;
+//     if (show) {
+//       toastTimeout = setTimeout(() => {
+//         console.log("dismiss");
+//       }, 2000);
+//       console.log("create timeout ---> ", toastTimeout);
+//     }
 
-    return () => {
-      console.log("clear timeout ---> ", toastTimeout);
-      if (toastTimeout) {
-        clearTimeout(toastTimeout);
-      }
-    };
-  }, [show]);
-  return show && <div>Test</div>;
-};
+//     return () => {
+//       console.log("clear timeout ---> ", toastTimeout);
+//       if (toastTimeout) {
+//         clearTimeout(toastTimeout);
+//       }
+//     };
+//   }, [show]);
+//   return show && <div>Test</div>;
+// };
 
 const LoginPage = () => {
   const { onFlowEvent } = useLoginFlowEvent();
@@ -29,7 +29,7 @@ const LoginPage = () => {
 
   React.useEffect(() => {
     // fire a business flow event
-    onFlowEvent("pageDidMount");
+    onFlowEvent('pageDidMount');
   }, []);
 
   return (
@@ -52,7 +52,7 @@ const LoginPage = () => {
         Login
       </button>
       <div style={{ padding: 24 }}>{window.navigator.userAgent}</div>
-      <Test show={show} />
+      {/* <Test show={show} /> */}
     </div>
   );
 };
