@@ -1,6 +1,8 @@
 import * as React from 'react';
+import { useLoginFlowEvent } from '../flow-event';
 
 const LoginContainer = ({ goNext }: any) => {
+  const { trackEvent } = useLoginFlowEvent();
   const [phone, setPhone] = React.useState('');
 
   React.useEffect(() => {}, []);
@@ -13,6 +15,7 @@ const LoginContainer = ({ goNext }: any) => {
       </div>
       <button
         onClick={() => {
+          trackEvent('clickNextButton', { authKey: phone, authKeyType: 'phone' });
           goNext && goNext();
         }}
       >

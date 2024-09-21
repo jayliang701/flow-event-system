@@ -2,20 +2,26 @@
  * Shared Component could have its own Flow Event Context.
  */
 
+import { createComponentEventContext } from '../../flow-event';
+
 import {
-  ToEventDefinition,
-  usePageEventContext,
-  withPageEvent,
-} from '../../flow-event';
+  TRACKER_NAME as OTP_FLOW_TRACKER_NAME,
+  createInitialState,
+  createTracker,
+  OtpFlowEventDefinition,
+  OtpFlowEventState,
+  OtpFlowEventHandlers,
+} from './tracker';
 
-import { createOtpFlowTracker } from './tracker';
+const {
+  ComponentEventContext: OtpFlowEventContext,
+  useComponentEventContext: useOtpFlowEvent,
+  withComponentEvent: withOtpFlowEvent,
+} = createComponentEventContext<OtpFlowEventDefinition, OtpFlowEventState>(
+  createInitialState(),
+  createTracker(),
+);
 
-export type OtpFlowEvents = ToEventDefinition<typeof createOtpFlowTracker>;
+export type { OtpFlowEventDefinition, OtpFlowEventState, OtpFlowEventHandlers };
 
-export function useOtpFlowEvent() {
-  return usePageEventContext<OtpFlowEvents>();
-}
-
-export function withOtpFlowEvent<Props extends object = {}>() {
-  return withPageEvent<OtpFlowEvents, Props>(createOtpFlowTracker());
-}
+export { OTP_FLOW_TRACKER_NAME, OtpFlowEventContext, useOtpFlowEvent, withOtpFlowEvent };

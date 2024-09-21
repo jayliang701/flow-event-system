@@ -2,31 +2,22 @@
  * Each Shared Component could have its own Flow Event Context.
  */
 
+import { usePageEventContext, withPageEvent } from '../../flow-event';
+
 import {
-  ToEventDefinition,
-  usePageEventContext,
-  withPageEvent,
-  createFlowEventTracker,
-} from '../../flow-event';
-
-import { loginFlowEventHandlerCreator } from './tracker';
-
-const TRACKER_NAME = 'LoginPage';
-
-export type LoginFlowEvents = ToEventDefinition<
-  typeof loginFlowEventHandlerCreator
->;
+  createInitialState,
+  createTracker,
+  LoginPageFlowEventDefinition,
+  LoginPageFlowEventState,
+} from './tracker';
 
 export function useLoginFlowEvent() {
-  return usePageEventContext<LoginFlowEvents>();
+  return usePageEventContext<LoginPageFlowEventDefinition>();
 }
 
-const tracker = createFlowEventTracker(TRACKER_NAME, {
-  context: {},
-  handlerCreator: loginFlowEventHandlerCreator,
-  subTrackers: {},
-});
-
 export function withLoginFlowEvent<Props extends object = {}>() {
-  return withPageEvent<LoginFlowEvents, Props>(tracker);
+  return withPageEvent<LoginPageFlowEventDefinition, LoginPageFlowEventState, Props>(
+    createInitialState(),
+    createTracker(),
+  );
 }

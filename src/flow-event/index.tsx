@@ -1,8 +1,7 @@
 import * as React from 'react';
-import { FlowEventContextValue, FlowEventTracker } from './types';
+import { FlowEventContextValue, FlowEventTracker, PageFlowEventTracker } from './types';
 
 export * from './types';
-export * from './utils';
 
 // Page Level
 const PageEventContext: React.Context<FlowEventContextValue<any>> = (() => {
@@ -18,23 +17,25 @@ const PageEventContext: React.Context<FlowEventContextValue<any>> = (() => {
 
 // a helper function to "create" Page/Component FlowEventContext
 export function createFlowEventContext<EventDefinition>() {
-  const context = PageEventContext as React.Context<
-    FlowEventContextValue<EventDefinition>
-  >;
+  const context = PageEventContext as React.Context<FlowEventContextValue<EventDefinition>>;
   return context;
 }
 
-export function usePageEventContext<
-  EventDefinition
->(): FlowEventContextValue<EventDefinition> {
+export function usePageEventContext<EventDefinition>(): FlowEventContextValue<EventDefinition> {
   return React.useContext(PageEventContext);
 }
 
-export function withPageEvent<EventDefinition, Props extends object = {}>(
-  tracker: FlowEventTracker<EventDefinition>
-) {
+export function withPageEvent<
+  EventDefinition,
+  FlowEventState extends object = {},
+  Props extends object = {},
+>(state: FlowEventState, tracker: PageFlowEventTracker<EventDefinition>) {
+  const initialState = { ...state };
+
   return (Component: React.ComponentType<Props>) => {
     return (props: Props) => {
+      const flowEventState = React.useRef(initialState);
+
       const trackEvent = <EventName extends keyof EventDefinition>(
         name: EventName,
         ...args: undefined extends EventDefinition[EventName]
@@ -43,28 +44,70 @@ export function withPageEvent<EventDefinition, Props extends object = {}>(
       ) => {
         const handler = tracker.handlers[name];
         if (handler) {
-          console.log(
-            `[Page Event] handle event --> ${String(name)}     args: ${args}`
-          );
-          void handler.apply(tracker, args);
+          console.log(`[Page - ${tracker.name}] track event --> ${String(name)}     args: ${args}`);
+          const ret = handler.apply(tracker, args);
+          if (ret == null) {
+            // no state change
+          } else if (typeof ret === 'function') {
+            // state change
+            const nestedRet = ret({ state: Object.freeze({ ...flowEventState.current }) });
+            if (nestedRet && typeof nestedRet === 'object') {
+              flowEventState.current = { ...flowEventState.current, ...nestedRet };
+            }
+          } else {
+            // state change
+            flowEventState.current = { ...flowEventState.current, ...ret };
+          }
           return true;
         } else {
           return false;
         }
       };
 
-      const trackSubTrackerEvent = (
-        trackerName: string,
-        eventName: string,
-        ...payloads: any
-      ) => {
-        const subTracker = tracker.subTrackers
-          ? (tracker.subTrackers as Record<string, FlowEventTracker<any>>)[
-              trackerName
-            ]
-          : undefined;
-        if (subTracker && subTracker.handlers[eventName]) {
-          void subTracker.handlers[eventName].apply(subTracker, payloads);
+      const trackSubTrackerEvent = <
+        ComponentEventDefinition,
+        ComponentFlowEventState extends object = {},
+      >({
+        trackerName,
+        eventName,
+        getState,
+        updateState,
+        args,
+      }: {
+        trackerName: string;
+        eventName: keyof ComponentEventDefinition;
+        args: undefined extends ComponentEventDefinition[keyof ComponentEventDefinition]
+          ? [details?: ComponentEventDefinition[keyof ComponentEventDefinition]]
+          : [details: ComponentEventDefinition[keyof ComponentEventDefinition]];
+        getState: () => ComponentFlowEventState;
+        updateState: (state: Partial<ComponentFlowEventState>) => void;
+      }) => {
+        const subTracker = tracker.subTrackers ? tracker.subTrackers[trackerName] : undefined;
+        const overridedHandler = subTracker?.handlers[eventName];
+        if (overridedHandler) {
+          console.log(
+            `[Page - ${tracker.name}][Component - ${trackerName}] track event --> ${String(
+              eventName,
+            )}     args: ${args}`,
+          );
+          const ret = overridedHandler.apply(tracker, args);
+          if (ret == null) {
+            // no state change
+          } else if (typeof ret === 'function') {
+            // state change
+            const currentSubState = getState();
+            const nestedRet = ret({
+              state: currentSubState,
+              // @ts-ignore
+              pageState: Object.freeze({ ...flowEventState.current }),
+            });
+            if (nestedRet && typeof nestedRet === 'object') {
+              updateState({ ...currentSubState, ...nestedRet });
+            }
+          } else {
+            // state change
+            updateState({ ...getState(), ...ret });
+          }
           return true;
         }
         return false;
@@ -89,12 +132,13 @@ export function withPageEvent<EventDefinition, Props extends object = {}>(
   };
 }
 
-export function createComponentEventContext<EventDefinition>(
-  tracker: FlowEventTracker<EventDefinition>
+export function createComponentEventContext<EventDefinition, FlowEventState extends object = {}>(
+  state: FlowEventState,
+  tracker: FlowEventTracker<EventDefinition>,
 ) {
-  const ComponentEventContext = React.createContext<
-    FlowEventContextValue<EventDefinition>
-  >({
+  const initialState = { ...state };
+
+  const ComponentEventContext = React.createContext<FlowEventContextValue<EventDefinition>>({
     trackEvent: () => false,
   });
 
@@ -102,10 +146,9 @@ export function createComponentEventContext<EventDefinition>(
     return React.useContext(ComponentEventContext);
   };
 
-  const withComponentEvent = <Props extends object = {}>(
-    Component: React.ComponentType<Props>
-  ) => {
+  const withComponentEvent = <Props extends object = {}>(Component: React.ComponentType<Props>) => {
     return (props: Props) => {
+      const flowEventState = React.useRef(initialState);
       const pageEventContext = usePageEventContext<EventDefinition>();
 
       const trackEvent = <EventName extends keyof EventDefinition>(
@@ -116,22 +159,36 @@ export function createComponentEventContext<EventDefinition>(
       ) => {
         if (
           pageEventContext &&
-          (pageEventContext as any).trackSubTrackerEvent(
-            tracker.name,
-            name,
-            ...args
-          )
+          (pageEventContext as any).trackSubTrackerEvent({
+            trackerName: tracker.name,
+            eventName: name,
+            args,
+            getState: () => Object.freeze({ ...flowEventState.current }),
+            updateState: (upserts: Partial<FlowEventState>) => {
+              flowEventState.current = { ...flowEventState.current, ...upserts };
+            },
+          })
         ) {
           return true;
         }
         const handler = tracker.handlers[name];
         if (handler) {
           console.log(
-            `[Component Event] handle event --> ${String(
-              name
-            )}     args: ${args}`
+            `[Component - ${tracker.name}] track event --> ${String(name)}     args: ${args}`,
           );
-          void handler.apply(tracker, args);
+          const ret = handler.apply(tracker, args);
+          if (ret == null) {
+            // no state change
+          } else if (typeof ret === 'function') {
+            // state change
+            const nestedRet = ret({ state: Object.freeze({ ...flowEventState.current }) });
+            if (nestedRet && typeof nestedRet === 'object') {
+              flowEventState.current = { ...flowEventState.current, ...nestedRet };
+            }
+          } else {
+            // state change
+            flowEventState.current = { ...flowEventState.current, ...ret };
+          }
           return true;
         } else {
           return false;

@@ -1,7 +1,9 @@
 import * as React from 'react';
 
 const AccountBindPage = () => {
-  React.useEffect(() => {}, []);
+  React.useEffect(() => {
+    console.log('AccountBindPage mounted');
+  }, []);
 
   return (
     <div>

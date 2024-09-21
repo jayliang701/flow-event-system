@@ -4,7 +4,7 @@ import { withOtpFlowEvent, useOtpFlowEvent } from './flow-event';
 function OtpVerification({ onSuccess }: any) {
   const { trackEvent } = useOtpFlowEvent();
   React.useEffect(() => {
-    trackEvent('begin', { scenario: undefined });
+    trackEvent('begin', { authKeyType: 'phone' });
   }, []);
 
   return (
@@ -16,7 +16,7 @@ function OtpVerification({ onSuccess }: any) {
         <button
           type="button"
           onClick={() => {
-            trackEvent('clickVerifyButton');
+            trackEvent('clickVerifyButton', { channel: 'sms' });
             onSuccess && onSuccess();
           }}
         >
@@ -27,4 +27,4 @@ function OtpVerification({ onSuccess }: any) {
   );
 }
 
-export default withOtpFlowEvent()(OtpVerification);
+export default withOtpFlowEvent(OtpVerification);

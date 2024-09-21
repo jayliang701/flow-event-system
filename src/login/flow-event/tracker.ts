@@ -1,52 +1,84 @@
-/**
- * Each business page should have its own tracker.
- */
-import type { OtpFlowEvents } from '../../otp/flow-event';
+import { FlowEventHandlers } from '../../flow-event';
+import { OTP_FLOW_TRACKER_NAME, OtpFlowEventHandlers } from '../../otp/flow-event';
 
-// This function return can be treated as a Flow Tracking Context
-export function loginFlowEventHandlerCreator(
-  context: any,
-  setContext: (context: any) => any
-) {
-  // a flow event handler
-  const pageDidMount = () => {
-    // restore
+export const TRACKER_NAME = 'LoginPage';
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const scenario = urlParams.get('scenario') || 'default';
-    setContext({
-      scenario,
-    });
+export type LoginPageFlowEventState = {
+  fromSource: string | null;
+  authKey: string | null;
+  authKeyType: 'phone' | 'email' | null;
+};
 
-    // Todo: invoke TMS tracking API or trace pageLoad performance metric
-    console.log('[Login Page Event] pageDidMount', context);
+export const createInitialState = (): LoginPageFlowEventState => {
+  return {
+    fromSource: null,
+    authKey: null,
+    authKeyType: null,
   };
+};
 
-  // a flow event handler
-  const clickLoginButton = ({
-    credentialType,
-  }: {
-    credentialType: 'phone' | 'email';
-  }) => {
-    // Todo: invoke TMS tracking API
-    // scenario doesn't need to be passed again
-    console.log('[Login Page Event] clickLoginButton', context, credentialType);
-  };
+export type LoginPageFlowEventDefinition = {
+  pageDidMount: undefined;
+  clickNextButton: { authKey: string; authKeyType: 'phone' | 'email' };
+  requireLoginFurtherAction: { scenario: 'account_bind' | 'ivs' };
+};
 
-  const overrides = {
-    otp: {
-      inject: () => {
-        pageType: 'xxx';
-      },
+export function createTracker() {
+  const handlers: FlowEventHandlers<LoginPageFlowEventDefinition, LoginPageFlowEventState> = {
+    pageDidMount() {
+      return ({ state }) => {
+        const url = new URL(window.location.href);
+        const fromSource = url.searchParams.get('from');
+        console.log('pageDidMount -->', { ...state, fromSource });
+        // return Partial State if you need to update the state
+        return {
+          fromSource,
+        };
+      };
+    },
+    clickNextButton({ authKey, authKeyType }) {
+      return ({ state }) => {
+        console.log('clickNextButton -->', { ...state, authKey, authKeyType });
+        return {
+          authKey,
+          authKeyType,
+        };
+      };
+    },
+    requireLoginFurtherAction({ scenario }) {
+      return ({ state }) => {
+        console.log('onLoginFurtherAction -->', { ...state, scenario });
+        // return void if you don't need to update the state
+      };
     },
   };
 
-  (redirect) => {
-    // save context
+  const otpHandlers: OtpFlowEventHandlers = {
+    begin({ authKeyType }) {
+      return ({ state }) => {
+        console.log('[Override] begin', { ...state, authKeyType });
+        return {
+          authKeyType,
+        };
+      };
+    },
+    clickVerifyButton({ channel }) {
+      return ({ state }) => {
+        console.log('[Override] clickVerifyButton', { ...state, channel });
+        return {
+          channel,
+        };
+      };
+    },
   };
 
   return {
-    pageDidMount,
-    clickLoginButton,
+    name: TRACKER_NAME,
+    handlers,
+    subTrackers: {
+      [OTP_FLOW_TRACKER_NAME]: {
+        handlers: otpHandlers,
+      },
+    },
   };
 }

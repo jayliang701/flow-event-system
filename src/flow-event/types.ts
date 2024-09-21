@@ -1,18 +1,21 @@
-export type FlowEventTracker<
-  EventDefinition,
-  SubTrackers extends Record<string, FlowEventTracker<any>> = {}
-> = {
+export type FlowEventTracker<EventDefinition> = {
   name: string;
-  subTrackers: SubTrackers;
   handlers: FlowEventHandlers<EventDefinition>;
 };
 
-export type FlowEventHandlers<EventDefinition> = {
+export type PageFlowEventTracker<EventDefinition> = FlowEventTracker<EventDefinition> & {
+  subTrackers?: Record<string, { handlers: FlowEventHandlers<any> }>;
+};
+
+export type FlowEventHandlers<EventDefinition, FlowEventState extends object = {}> = {
   [EventName in keyof EventDefinition]: (
     ...args: undefined extends EventDefinition[EventName]
       ? [details?: EventDefinition[EventName]]
       : [details: EventDefinition[EventName]]
-  ) => void;
+  ) =>
+    | void
+    | Partial<FlowEventState>
+    | ((context: { state: Readonly<FlowEventState> }) => void | Partial<FlowEventState>);
 };
 
 export type FlowEventContextValue<EventDefinition> = {
@@ -22,16 +25,4 @@ export type FlowEventContextValue<EventDefinition> = {
       ? [details?: EventDefinition[EventName]]
       : [details: EventDefinition[EventName]]
   ): boolean;
-};
-
-export type ToEventDefinition<
-  Method extends (...args: any[]) => {
-    [name: string]: (details?: any) => void;
-  }
-> = {
-  [EventName in keyof ReturnType<Method>]: [] extends Parameters<
-    ReturnType<Method>[EventName]
-  >
-    ? undefined
-    : Parameters<ReturnType<Method>[EventName]>[0];
 };
