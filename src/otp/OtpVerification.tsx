@@ -1,10 +1,10 @@
 import * as React from 'react';
-import { withOtpFlowEvent, useOtpFlowEvent } from './flow-tracking';
+import { withOtpFlowEvent, useOtpFlowEvent } from './flow-event';
 
 function OtpVerification({ onSuccess }: any) {
-  const { onFlowEvent } = useOtpFlowEvent();
+  const { trackEvent } = useOtpFlowEvent();
   React.useEffect(() => {
-    onFlowEvent('begin', { scenario: 'login-by-password' });
+    trackEvent('begin', { scenario: undefined });
   }, []);
 
   return (
@@ -16,7 +16,7 @@ function OtpVerification({ onSuccess }: any) {
         <button
           type="button"
           onClick={() => {
-            onFlowEvent('clickVerifyButton');
+            trackEvent('clickVerifyButton');
             onSuccess && onSuccess();
           }}
         >

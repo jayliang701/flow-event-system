@@ -1,24 +1,37 @@
 import * as React from 'react';
-import { EventContextValue, FlowTracker } from './types';
+import { FlowEventContextValue, FlowEventTracker } from './types';
+
+export * from './types';
+export * from './utils';
 
 // Page Level
-const PageEventContext: React.Context<EventContextValue<any>> = (() => {
+const PageEventContext: React.Context<FlowEventContextValue<any>> = (() => {
   let context = (window as any).__$pageEventContext;
   if (!context) {
-    context = React.createContext<EventContextValue<any>>({
+    context = React.createContext<FlowEventContextValue<any>>({
       trackEvent: () => false,
     });
-    (window as any).__$pageEventContext = context;
+    (window as any).__$pageEventContext = context; // ensure singleton
   }
   return context;
 })();
 
-export function usePageEventContext() {
+// a helper function to "create" Page/Component FlowEventContext
+export function createFlowEventContext<EventDefinition>() {
+  const context = PageEventContext as React.Context<
+    FlowEventContextValue<EventDefinition>
+  >;
+  return context;
+}
+
+export function usePageEventContext<
+  EventDefinition
+>(): FlowEventContextValue<EventDefinition> {
   return React.useContext(PageEventContext);
 }
 
 export function withPageEvent<EventDefinition, Props extends object = {}>(
-  tracker: FlowTracker<EventDefinition>,
+  tracker: FlowEventTracker<EventDefinition>
 ) {
   return (Component: React.ComponentType<Props>) => {
     return (props: Props) => {
@@ -28,8 +41,11 @@ export function withPageEvent<EventDefinition, Props extends object = {}>(
           ? [details?: EventDefinition[EventName]]
           : [details: EventDefinition[EventName]]
       ) => {
-        const handler = tracker[name];
+        const handler = tracker.handlers[name];
         if (handler) {
+          console.log(
+            `[Page Event] handle event --> ${String(name)}     args: ${args}`
+          );
           void handler.apply(tracker, args);
           return true;
         } else {
@@ -37,14 +53,34 @@ export function withPageEvent<EventDefinition, Props extends object = {}>(
         }
       };
 
+      const trackSubTrackerEvent = (
+        trackerName: string,
+        eventName: string,
+        ...payloads: any
+      ) => {
+        const subTracker = tracker.subTrackers
+          ? (tracker.subTrackers as Record<string, FlowEventTracker<any>>)[
+              trackerName
+            ]
+          : undefined;
+        if (subTracker && subTracker.handlers[eventName]) {
+          void subTracker.handlers[eventName].apply(subTracker, payloads);
+          return true;
+        }
+        return false;
+      };
+
       const RootEventContext = PageEventContext as React.Context<
-        EventContextValue<EventDefinition>
+        FlowEventContextValue<EventDefinition>
       >;
       return (
         <RootEventContext.Provider
-          value={{
-            trackEvent,
-          }}
+          value={
+            {
+              trackEvent,
+              trackSubTrackerEvent,
+            } as any
+          }
         >
           <Component {...props} />
         </RootEventContext.Provider>
@@ -54,9 +90,11 @@ export function withPageEvent<EventDefinition, Props extends object = {}>(
 }
 
 export function createComponentEventContext<EventDefinition>(
-  tracker: FlowTracker<EventDefinition>,
+  tracker: FlowEventTracker<EventDefinition>
 ) {
-  const ComponentEventContext = React.createContext<EventContextValue<EventDefinition>>({
+  const ComponentEventContext = React.createContext<
+    FlowEventContextValue<EventDefinition>
+  >({
     trackEvent: () => false,
   });
 
@@ -64,9 +102,11 @@ export function createComponentEventContext<EventDefinition>(
     return React.useContext(ComponentEventContext);
   };
 
-  const withComponentEvent = <Props extends object = {}>(Component: React.ComponentType<Props>) => {
+  const withComponentEvent = <Props extends object = {}>(
+    Component: React.ComponentType<Props>
+  ) => {
     return (props: Props) => {
-      const pageEventContext = usePageEventContext();
+      const pageEventContext = usePageEventContext<EventDefinition>();
 
       const trackEvent = <EventName extends keyof EventDefinition>(
         name: EventName,
@@ -74,11 +114,23 @@ export function createComponentEventContext<EventDefinition>(
           ? [details?: EventDefinition[EventName]]
           : [details: EventDefinition[EventName]]
       ) => {
-        if (pageEventContext && pageEventContext.trackEvent(name, ...args)) {
+        if (
+          pageEventContext &&
+          (pageEventContext as any).trackSubTrackerEvent(
+            tracker.name,
+            name,
+            ...args
+          )
+        ) {
           return true;
         }
-        const handler = tracker[name];
+        const handler = tracker.handlers[name];
         if (handler) {
+          console.log(
+            `[Component Event] handle event --> ${String(
+              name
+            )}     args: ${args}`
+          );
           void handler.apply(tracker, args);
           return true;
         } else {

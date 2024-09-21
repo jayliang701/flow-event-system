@@ -1,15 +1,15 @@
 import * as React from 'react';
-import { withLoginFlowEvent, useLoginFlowEvent } from './flow-tracking';
+import { withLoginFlowEvent, useLoginFlowEvent } from './flow-event';
 import OtpContainer from './container/OtpContainer';
 import LoginContainer from './container/LoginContainer';
 
 const LoginPage = () => {
-  const { onFlowEvent } = useLoginFlowEvent();
+  const { trackEvent } = useLoginFlowEvent();
   const [view, setView] = React.useState(1);
 
   React.useEffect(() => {
     // fire a business flow event
-    onFlowEvent('pageDidMount');
+    trackEvent('pageDidMount');
   }, []);
 
   return (
