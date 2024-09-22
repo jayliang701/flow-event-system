@@ -44,7 +44,7 @@ export function withPageEvent<
       ) => {
         const handler = tracker.handlers[name];
         if (handler) {
-          console.log(`[Page - ${tracker.name}] track event --> ${String(name)}     args: ${args}`);
+          console.log(`[${tracker.name}] track event --> ${String(name)}     args:`, args);
           const ret = handler.apply(tracker, args);
           if (ret == null) {
             // no state change
@@ -86,9 +86,8 @@ export function withPageEvent<
         const overridedHandler = subTracker?.handlers[eventName];
         if (overridedHandler) {
           console.log(
-            `[Page - ${tracker.name}][Component - ${trackerName}] track event --> ${String(
-              eventName,
-            )}     args: ${args}`,
+            `[${tracker.name}][${trackerName}] track event --> ${String(eventName)}     args:`,
+            args,
           );
           const ret = overridedHandler.apply(tracker, args);
           if (ret == null) {
@@ -173,9 +172,7 @@ export function createComponentEventContext<EventDefinition, FlowEventState exte
         }
         const handler = tracker.handlers[name];
         if (handler) {
-          console.log(
-            `[Component - ${tracker.name}] track event --> ${String(name)}     args: ${args}`,
-          );
+          console.log(`[${tracker.name}] track event --> ${String(name)}     args:`, args);
           const ret = handler.apply(tracker, args);
           if (ret == null) {
             // no state change
