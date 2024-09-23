@@ -1,9 +1,13 @@
-import { FlowEventHandlers } from '../../flow-event';
-import { OTP_FLOW_TRACKER_NAME, OtpFlowEventHandlers } from '../../otp/flow-event';
+import { FlowEventHandlers, ToSubFlowEventHandlers } from '../../flow-event';
+import {
+  OTP_FLOW_TRACKER_NAME,
+  OtpFlowEventHandlers,
+} from '../../otp/flow-event';
 
 export const TRACKER_NAME = 'LoginPage';
 
 export type LoginPageFlowEventState = {
+  pageType: string | null;
   fromSource: string | null;
   authKey: string | null;
   authKeyType: 'phone' | 'email' | null;
@@ -11,6 +15,7 @@ export type LoginPageFlowEventState = {
 
 export const createInitialState = (): LoginPageFlowEventState => {
   return {
+    pageType: 'login',
     fromSource: null,
     authKey: null,
     authKeyType: null,
@@ -24,7 +29,11 @@ export type LoginPageFlowEventDefinition = {
 };
 
 export function createTracker() {
-  const handlers: FlowEventHandlers<LoginPageFlowEventDefinition, LoginPageFlowEventState> = {
+  // page event handlers
+  const handlers: FlowEventHandlers<
+    LoginPageFlowEventDefinition,
+    LoginPageFlowEventState
+  > = {
     pageDidMount() {
       return ({ state }) => {
         const url = new URL(window.location.href);
@@ -53,18 +62,28 @@ export function createTracker() {
     },
   };
 
-  const otpHandlers: OtpFlowEventHandlers = {
+  // override Component level event handlers
+  // can be Partial<OtpFlowEventHandlers>, means partially override event handlers
+  const otpHandlers: ToSubFlowEventHandlers<
+    OtpFlowEventHandlers,
+    LoginPageFlowEventState
+  > = {
     begin({ authKeyType }) {
-      return ({ state }) => {
+      return ({ state, pageState }) => {
         console.log('[Override] begin', { ...state, authKeyType });
+        console.log('pageState ---> ', pageState);
         return {
           authKeyType,
         };
       };
     },
     clickVerifyButton({ channel }) {
-      return ({ state }) => {
+      return ({ state, pageState }) => {
         console.log('[Override] clickVerifyButton', { ...state, channel });
+        // we can get Page level flow event context state values
+        console.log(
+          `Verify OTP with: \n- authKeyType: ${pageState.authKeyType}\n- channel: ${channel}\n- pageType: ${pageState.pageType}`
+        );
         return {
           channel,
         };

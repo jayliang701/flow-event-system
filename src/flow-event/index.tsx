@@ -1,38 +1,62 @@
 import * as React from 'react';
-import { FlowEventContextValue, FlowEventTracker, PageFlowEventTracker } from './types';
+import {
+  FlowEventContextValue,
+  FlowEventTracker,
+  InternalPageFlowEventContextValue,
+  PageFlowEventTracker,
+} from './types';
 
 export * from './types';
 
 // Page Level
-const PageEventContext: React.Context<FlowEventContextValue<any>> = (() => {
+// ensure singleton, maybe it's not necessary~~
+function getPageEventContext(): React.Context<FlowEventContextValue<any>> {
   let context = (window as any).__$pageEventContext;
   if (!context) {
     context = React.createContext<FlowEventContextValue<any>>({
       trackEvent: () => false,
     });
-    (window as any).__$pageEventContext = context; // ensure singleton
+    (window as any).__$pageEventContext = context;
   }
-  return context;
-})();
-
-// a helper function to "create" Page/Component FlowEventContext
-export function createFlowEventContext<EventDefinition>() {
-  const context = PageEventContext as React.Context<FlowEventContextValue<EventDefinition>>;
   return context;
 }
 
-export function usePageEventContext<EventDefinition>(): FlowEventContextValue<EventDefinition> {
-  return React.useContext(PageEventContext);
+// a helper function to "create" Page/Component FlowEventContext
+export function createFlowEventContext<EventDefinition>() {
+  const context = getPageEventContext() as React.Context<
+    FlowEventContextValue<EventDefinition>
+  >;
+  return context;
+}
+
+export function usePageEventContext<EventDefinition>() {
+  return React.useContext(
+    getPageEventContext()
+  ) as FlowEventContextValue<EventDefinition>;
+}
+
+function useInternalPageEventContext<EventDefinition>() {
+  return React.useContext(
+    getPageEventContext()
+  ) as InternalPageFlowEventContextValue<EventDefinition>;
 }
 
 export function withPageEvent<
   EventDefinition,
   FlowEventState extends object = {},
-  Props extends object = {},
->(state: FlowEventState, tracker: PageFlowEventTracker<EventDefinition>) {
+  Props extends object = {}
+>(
+  state: FlowEventState,
+  tracker: PageFlowEventTracker<EventDefinition, FlowEventState>
+) {
   const initialState = { ...state };
 
   return (Component: React.ComponentType<Props>) => {
+    // this type casting is a hacking
+    const RootEventContext = getPageEventContext() as any as React.Context<
+      InternalPageFlowEventContextValue<EventDefinition>
+    >;
+
     return (props: Props) => {
       const flowEventState = React.useRef(initialState);
 
@@ -44,15 +68,23 @@ export function withPageEvent<
       ) => {
         const handler = tracker.handlers[name];
         if (handler) {
-          console.log(`[${tracker.name}] track event --> ${String(name)}     args:`, args);
+          console.log(
+            `[${tracker.name}] track event --> ${String(name)}     args:`,
+            args
+          );
           const ret = handler.apply(tracker, args);
           if (ret == null) {
             // no state change
           } else if (typeof ret === 'function') {
             // state change
-            const nestedRet = ret({ state: Object.freeze({ ...flowEventState.current }) });
+            const nestedRet = ret({
+              state: Object.freeze({ ...flowEventState.current }),
+            });
             if (nestedRet && typeof nestedRet === 'object') {
-              flowEventState.current = { ...flowEventState.current, ...nestedRet };
+              flowEventState.current = {
+                ...flowEventState.current,
+                ...nestedRet,
+              };
             }
           } else {
             // state change
@@ -66,7 +98,7 @@ export function withPageEvent<
 
       const trackSubTrackerEvent = <
         ComponentEventDefinition,
-        ComponentFlowEventState extends object = {},
+        ComponentFlowEventState extends object = {}
       >({
         trackerName,
         eventName,
@@ -82,12 +114,16 @@ export function withPageEvent<
         getState: () => ComponentFlowEventState;
         updateState: (state: Partial<ComponentFlowEventState>) => void;
       }) => {
-        const subTracker = tracker.subTrackers ? tracker.subTrackers[trackerName] : undefined;
+        const subTracker = tracker.subTrackers
+          ? tracker.subTrackers[trackerName]
+          : undefined;
         const overridedHandler = subTracker?.handlers[eventName];
         if (overridedHandler) {
           console.log(
-            `[${tracker.name}][${trackerName}] track event --> ${String(eventName)}     args:`,
-            args,
+            `[${tracker.name}][${trackerName}] track event --> ${String(
+              eventName
+            )}     args:`,
+            args
           );
           const ret = overridedHandler.apply(tracker, args);
           if (ret == null) {
@@ -112,15 +148,12 @@ export function withPageEvent<
         return false;
       };
 
-      const RootEventContext = PageEventContext as React.Context<
-        FlowEventContextValue<EventDefinition>
-      >;
       return (
         <RootEventContext.Provider
           value={
             {
               trackEvent,
-              trackSubTrackerEvent,
+              trackSubTrackerEvent, // this function is be protected
             } as any
           }
         >
@@ -131,13 +164,16 @@ export function withPageEvent<
   };
 }
 
-export function createComponentEventContext<EventDefinition, FlowEventState extends object = {}>(
-  state: FlowEventState,
-  tracker: FlowEventTracker<EventDefinition>,
-) {
+// Component Level
+export function createComponentEventContext<
+  EventDefinition,
+  FlowEventState extends object = {}
+>(state: FlowEventState, tracker: FlowEventTracker<EventDefinition>) {
   const initialState = { ...state };
 
-  const ComponentEventContext = React.createContext<FlowEventContextValue<EventDefinition>>({
+  const ComponentEventContext = React.createContext<
+    FlowEventContextValue<EventDefinition>
+  >({
     trackEvent: () => false,
   });
 
@@ -145,10 +181,15 @@ export function createComponentEventContext<EventDefinition, FlowEventState exte
     return React.useContext(ComponentEventContext);
   };
 
-  const withComponentEvent = <Props extends object = {}>(Component: React.ComponentType<Props>) => {
+  const withComponentEvent = <Props extends object = {}>(
+    Component: React.ComponentType<Props>
+  ) => {
     return (props: Props) => {
       const flowEventState = React.useRef(initialState);
-      const pageEventContext = usePageEventContext<EventDefinition>();
+      // why we use Any generic type here?
+      // because component doesn't know who is the parent/page.
+      // A shared component could be used for multiple biz pages.
+      const pageEventContext = useInternalPageEventContext<any>();
 
       const trackEvent = <EventName extends keyof EventDefinition>(
         name: EventName,
@@ -157,14 +198,16 @@ export function createComponentEventContext<EventDefinition, FlowEventState exte
           : [details: EventDefinition[EventName]]
       ) => {
         if (
-          pageEventContext &&
-          (pageEventContext as any).trackSubTrackerEvent({
+          pageEventContext.trackSubTrackerEvent({
             trackerName: tracker.name,
             eventName: name,
             args,
             getState: () => Object.freeze({ ...flowEventState.current }),
             updateState: (upserts: Partial<FlowEventState>) => {
-              flowEventState.current = { ...flowEventState.current, ...upserts };
+              flowEventState.current = {
+                ...flowEventState.current,
+                ...upserts,
+              };
             },
           })
         ) {
@@ -172,15 +215,23 @@ export function createComponentEventContext<EventDefinition, FlowEventState exte
         }
         const handler = tracker.handlers[name];
         if (handler) {
-          console.log(`[${tracker.name}] track event --> ${String(name)}     args:`, args);
+          console.log(
+            `[${tracker.name}] track event --> ${String(name)}     args:`,
+            args
+          );
           const ret = handler.apply(tracker, args);
           if (ret == null) {
             // no state change
           } else if (typeof ret === 'function') {
             // state change
-            const nestedRet = ret({ state: Object.freeze({ ...flowEventState.current }) });
+            const nestedRet = ret({
+              state: Object.freeze({ ...flowEventState.current }),
+            });
             if (nestedRet && typeof nestedRet === 'object') {
-              flowEventState.current = { ...flowEventState.current, ...nestedRet };
+              flowEventState.current = {
+                ...flowEventState.current,
+                ...nestedRet,
+              };
             }
           } else {
             // state change
