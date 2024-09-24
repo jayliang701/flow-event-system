@@ -36,9 +36,14 @@ export function usePageEventContext<EventDefinition>() {
 }
 
 function useInternalPageEventContext<EventDefinition>() {
-  return React.useContext(
+  const pageEventContext = React.useContext(
     getPageEventContext()
   ) as InternalPageFlowEventContextValue<EventDefinition>;
+  if (pageEventContext.trackSubTrackerEvent == null) {
+    // parent page doesn't wrap by context provider
+    return null;
+  }
+  return pageEventContext;
 }
 
 export function withPageEvent<
@@ -198,6 +203,7 @@ export function createComponentEventContext<
           : [details: EventDefinition[EventName]]
       ) => {
         if (
+          pageEventContext &&
           pageEventContext.trackSubTrackerEvent({
             trackerName: tracker.name,
             eventName: name,
