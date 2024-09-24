@@ -1,22 +1,23 @@
-import * as React from "react";
-import { withOtpFlowEvent, useOtpFlowEvent } from "./flow-tracking";
+import * as React from 'react';
+import { withOtpFlowEvent, useOtpFlowEvent } from './flow-event';
 
-function OtpVerification() {
-  const { onFlowEvent } = useOtpFlowEvent();
+function OtpVerification({ onSuccess }: any) {
+  const { trackEvent } = useOtpFlowEvent();
   React.useEffect(() => {
-    onFlowEvent("begin", { scenario: "login-by-password" });
+    trackEvent('begin', { authKeyType: 'phone' });
   }, []);
 
   return (
-    <div style={{ padding: "24px" }}>
+    <div style={{ padding: '24px' }}>
       <div>
-        <input value={"123456"} />
+        <input value={'123456'} />
       </div>
-      <div style={{ marginTop: "16px" }}>
+      <div style={{ marginTop: '16px' }}>
         <button
           type="button"
           onClick={() => {
-            onFlowEvent("clickVerifyButton");
+            trackEvent('clickVerifyButton', { channel: 'sms' });
+            onSuccess && onSuccess();
           }}
         >
           Verify OTP
@@ -26,4 +27,4 @@ function OtpVerification() {
   );
 }
 
-export default withOtpFlowEvent()(OtpVerification);
+export default withOtpFlowEvent(OtpVerification);
